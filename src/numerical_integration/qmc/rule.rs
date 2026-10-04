@@ -1,12 +1,11 @@
 use crate::domains::integer::gcd_unsigned;
 
-use super::QmcError;
+use super::{PublishedLattice, QmcError};
 
 /// Published construction range of the bundled extensible Kuo rule.
 pub const KUO_MIN_POINTS: u64 = 1 << 10;
 pub const KUO_MAX_POINTS: u64 = 1 << 20;
 pub const KUO_MAX_DIMENSION: usize = 9125;
-const KUO_DATA: &[u8] = include_bytes!("data/kuo-33002.u64le");
 
 /// Provenance of a generating vector. All point generation is implemented in Rust.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -15,6 +14,12 @@ pub enum RuleSource {
     Supplied,
     /// Kuo's extensible order-three-weight rule, published for 2^10..=2^20 points.
     Kuo33002,
+    /// Kuo's equal-product-weight extensible vector.
+    Kuo38005,
+    /// Kuo's decaying-product-weight extensible vector.
+    Kuo39101,
+    /// HKKN's ten-dimensional equal-weight alpha-three Korobov vector.
+    HkknAlpha3,
 }
 
 /// A rank-one lattice `{i z / n}` for `i = 0..n`.
@@ -59,25 +64,45 @@ impl Rank1Rule {
     /// rounded or extrapolated. Supply another vector with [`Self::new`] for
     /// other counts. Provenance and the data license are in `qmc/data/README.md`.
     pub fn kuo(points: u64, dimension: usize) -> Result<Self, QmcError> {
-        if !points.is_power_of_two() || !(KUO_MIN_POINTS..=KUO_MAX_POINTS).contains(&points) {
-            return Err(QmcError::InvalidRule(
-                "Kuo rule requires a power of two in 1024..=1048576".into(),
-            ));
+        Self::published(PublishedLattice::Kuo33002, points, dimension)
+    }
+
+    /// Load a complete power-of-two rule from attributed published data.
+    ///
+    /// Unsupported counts and dimensions are errors; no vector search,
+    /// extrapolation, rounding or fallback to another catalogue is performed.
+    pub fn published(
+        catalogue: PublishedLattice,
+        points: u64,
+        dimension: usize,
+    ) -> Result<Self, QmcError> {
+        if !points.is_power_of_two()
+            || !(catalogue.min_points()..=catalogue.max_points()).contains(&points)
+        {
+            return Err(QmcError::InvalidRule(format!(
+                "{catalogue:?} requires a power of two in {}..={}",
+                catalogue.min_points(),
+                catalogue.max_points()
+            )));
         }
-        if !(1..=KUO_MAX_DIMENSION).contains(&dimension) {
-            return Err(QmcError::InvalidRule(
-                "Kuo dimension must be in 1..=9125".into(),
-            ));
+        if !(1..=catalogue.max_dimension()).contains(&dimension) {
+            return Err(QmcError::InvalidRule(format!(
+                "{catalogue:?} dimension must be in 1..={}",
+                catalogue.max_dimension()
+            )));
         }
-        let generator = KUO_DATA
-            .chunks_exact(8)
+        let generator = catalogue
+            .data()
+            .as_chunks::<8>()
+            .0
+            .iter()
             .take(dimension)
-            .map(|bytes| u64::from_le_bytes(bytes.try_into().unwrap()) % points)
+            .map(|bytes| u64::from_le_bytes(*bytes) % points)
             .collect();
         Ok(Self {
             modulus: points,
             generator,
-            source: RuleSource::Kuo33002,
+            source: catalogue.source(),
         })
     }
 
@@ -127,11 +152,18 @@ impl TryFrom<RuleConfig> for Rank1Rule {
     type Error = QmcError;
     fn try_from(config: RuleConfig) -> Result<Self, Self::Error> {
         let rule = Self::new(config.modulus, config.generator)?;
-        if config.source == RuleSource::Kuo33002 {
-            let known = Self::kuo(rule.points(), rule.dimension())?;
+        let catalogue = match config.source {
+            RuleSource::Supplied => None,
+            RuleSource::Kuo33002 => Some(PublishedLattice::Kuo33002),
+            RuleSource::Kuo38005 => Some(PublishedLattice::Kuo38005),
+            RuleSource::Kuo39101 => Some(PublishedLattice::Kuo39101),
+            RuleSource::HkknAlpha3 => Some(PublishedLattice::HkknAlpha3),
+        };
+        if let Some(catalogue) = catalogue {
+            let known = Self::published(catalogue, rule.points(), rule.dimension())?;
             if known.generator != rule.generator {
                 return Err(QmcError::InvalidRule(
-                    "Kuo provenance does not match vector".into(),
+                    "published catalogue provenance does not match vector".into(),
                 ));
             }
             Ok(known)

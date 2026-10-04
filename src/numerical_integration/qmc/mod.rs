@@ -21,12 +21,14 @@
 //! bits even through JSON. The plan encoding is versioned; checkpoint coordinates
 //! and sums use integer bit patterns, whereas displayed estimates use numbers.
 
+mod catalogue;
 mod error;
 mod rule;
 mod statistics;
 mod transform;
 mod work;
 
+pub use catalogue::PublishedLattice;
 pub use error::QmcError;
 pub use rule::{KUO_MAX_DIMENSION, KUO_MAX_POINTS, KUO_MIN_POINTS, Rank1Rule, RuleSource};
 pub use statistics::{QmcAccumulator, QmcEstimate, QmcPartial, ShiftEstimate};

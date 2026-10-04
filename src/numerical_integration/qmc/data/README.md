@@ -33,3 +33,52 @@ Payload SHA-256:
 
 Reproduce the conversion with `dd if=SOURCE.npy of=kuo-33002.u64le bs=1 skip=128`.
 This is a one-time data import; neither builds nor execution download data.
+
+## Additional explicit catalogues
+
+`Rank1Rule::published` also supports these attributed numerical datasets:
+
+| Catalogue | Source text | Dimension | Complete power-of-two counts |
+| --- | --- | --- | --- |
+| Kuo38005 | `kuo.lattice-38005-1024-1048576.5000.txt` | 5000 | 1024 through 1048576 |
+| Kuo39101 | `kuo.lattice-39101-1024-1048576.3600.txt` | 3600 | 1024 through 1048576 |
+| HKKN alpha3 | `mps.exew_base2_m20_a3_HKKN.txt` | 10 | 2 through 1048576 |
+
+Kuo38005 has equal product weights gamma_j=0.05; Kuo39101 has decaying
+product weights gamma_j=1/j. The author describes both at
+<https://web.maths.unsw.edu.au/~fkuo/lattice/>. HKKN alpha3 has equal weights
+in a Korobov space of smoothness three, from F. J. Hickernell, P. Kritzer,
+F. Y. Kuo and D. Nuyens, *Weighted compound integration rules with higher
+order convergence for all N*, Numerical Algorithms 59, 161–183 (2012),
+<https://doi.org/10.1007/s11075-011-9482-5>. The author's numerical file is
+<https://people.cs.kuleuven.be/~dirk.nuyens/qmc-generators/LATSEQ/exew_base2_m20_a3_HKKN.txt>.
+Only complete base-two sets are exposed here; arbitrary all-N sequence ordering
+is not implemented. Small-count support is a capability, not an accuracy claim.
+
+The imported source is the QMCSoftware-maintained LDData distribution, revision
+`5c55b76bf6b6aba3415a0dece9cc1269ff1be883`:
+<https://huggingface.co/datasets/Sou-Cheng/LDData/tree/5c55b76bf6b6aba3415a0dece9cc1269ff1be883>.
+Its Apache2 license notice is preserved in `LDDATA-LICENSE-NOTICE.txt`; the
+complete license is `LICENSE-APACHE-2.0`. Original text, attribution comments
+and headers are preserved alongside the compact payloads. Every source
+component was independently compared against the original author's file;
+all 10/5000/3600 integers match.
+
+The format change discards comments and the first two numeric records
+(dimension and maximum count), then writes each vector component as an
+unsigned 64-bit little-endian integer. No numerical value is changed. Point
+generation, randomization and statistics remain the independent Rust code in
+Numerica; no external integration code is copied or needed.
+
+| File | SHA256 |
+| --- | --- |
+| HKKN source text | `c423a2d92f8d891fff91aebd5ceb224b0a6c154f39da1964b55245296689364c` |
+| `hkkn-alpha3.u64le` | `e961023a9667d081a4fe782a5f9bb624e2c99e2fc0e20a875552c5a86939013f` |
+| Kuo38005 source text | `d6558c9dac142f871d92f83c0d32f83da500021c2580d1c954e4570362515e8b` |
+| `kuo-38005.u64le` | `101369d627429d77ac61b5290dffdc27ea97b0fa71632c27d4fbe088db0345be` |
+| Kuo39101 source text | `2a17256bba283d44ea3c8488c5ccb5a964a79150bc5a288ba54c8330ac0e7d2d` |
+| `kuo-39101.u64le` | `682ebbdea068592cf5d702f24b9033e76880ad0b21c74cfdac4877316d6e66f8` |
+
+The historical `kuo` constructor and `Kuo33002` serialized provenance keep
+their original meaning. These options do not change the default, search for
+a better vector or silently fall back when a catalogue dimension is exceeded.

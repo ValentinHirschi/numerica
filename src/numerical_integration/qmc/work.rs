@@ -57,7 +57,7 @@ impl QmcPlan {
         let mut seed_state = seed;
         let mut stream_state = stream;
         let mut state = [0u8; 32];
-        for chunk in state.chunks_exact_mut(8) {
+        for chunk in state.as_chunks_mut::<8>().0 {
             let a = MonteCarloRng::splitmix64_next(&mut seed_state);
             let b = MonteCarloRng::splitmix64_next(&mut stream_state);
             chunk.copy_from_slice(&a.wrapping_add(b.rotate_left(29)).to_le_bytes());
