@@ -43,6 +43,9 @@ use rand::{Rng, RngCore, SeedableRng};
 
 use crate::domains::float::{Constructible, Real, RealLike};
 
+/// Caller-driven randomized rank-one lattice integration, separate from Monte Carlo grids.
+pub mod qmc;
+
 /// Keep track of statistical quantities, such as the average,
 /// the error and the chi-squared of samples added over multiple
 /// iterations.
