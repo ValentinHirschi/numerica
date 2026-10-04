@@ -125,6 +125,40 @@ fn modular_products_do_not_overflow() {
 }
 
 #[test]
+fn periodic_shift_preserves_small_residues_at_maximum_modulus() {
+    let n = 1u64 << 53;
+    let shifts = [1, 1 << 51, 1 << 52, 3 << 51, n - 1];
+    let plan = QmcPlan::with_shifts(
+        Rank1Rule::new(n, vec![1]).unwrap(),
+        shifts.iter().map(|s| vec![*s as f64 / n as f64]).collect(),
+    )
+    .unwrap();
+    let mut point = [0.0];
+    for (shift_id, &shift) in shifts.iter().enumerate() {
+        for index in [0, 1, (1 << 51) - 1, 1 << 51, (1 << 51) + 1, n - 2, n - 1] {
+            plan.point(shift_id as u64 * n + index, &mut point).unwrap();
+            assert_eq!(point[0], ((index + shift) % n) as f64 / n as f64);
+        }
+    }
+    // Arbitrary supplied shifts can carry information finer than the lattice
+    // spacing. Keep the tiny wrapped residue instead of first rounding to one.
+    let offset = (1.0 / n as f64).next_up();
+    let plan =
+        QmcPlan::with_shifts(Rank1Rule::new(n, vec![1]).unwrap(), vec![vec![offset]]).unwrap();
+    plan.point(n - 1, &mut point).unwrap();
+    assert_eq!(point[0], offset - 1.0 / n as f64);
+    // A sum just below one may round up. It must remain below the boundary,
+    // rather than spuriously wrapping from almost one to zero.
+    let plan = QmcPlan::with_shifts(
+        Rank1Rule::new(2, vec![1]).unwrap(),
+        vec![vec![0.5_f64.next_down()]],
+    )
+    .unwrap();
+    plan.point(1, &mut point).unwrap();
+    assert_eq!(point[0], 1.0_f64.next_down());
+}
+
+#[test]
 fn shift_prefixes_do_not_depend_on_dimension_count_or_workers() {
     let small = QmcPlan::new(Rank1Rule::new(127, vec![1, 3]).unwrap(), 3, 987, 2).unwrap();
     let large = QmcPlan::new(Rank1Rule::new(127, vec![1, 3, 5, 7, 9]).unwrap(), 8, 987, 2).unwrap();
@@ -207,6 +241,18 @@ fn uncertainty_and_covariance_use_complete_shift_means() {
     // Positive pointwise variance but identical replica means: QMC error is zero.
     let identical = integrate(plan(4, 4), 3, 1, |i, _| vec![(i % 2 * 2) as f64]);
     assert_eq!(identical.estimate().unwrap().standard_error, vec![0.0]);
+}
+
+#[test]
+fn covariance_retains_small_variations_on_a_large_absolute_offset() {
+    let estimate =
+        QmcEstimate::from_shift_means(&[vec![1e16, -1e16], vec![1e16 + 2.0, -1e16 - 2.0]]).unwrap();
+    assert_eq!(estimate.covariance_of_mean, vec![1.0, -1.0, -1.0, 1.0]);
+    assert_eq!(estimate.standard_error, vec![1.0, 1.0]);
+    // A representable mean need not require summing large absolute values.
+    let constant = QmcEstimate::from_shift_means(&[vec![1e308], vec![1e308]]).unwrap();
+    assert_eq!(constant.mean, vec![1e308]);
+    assert_eq!(constant.standard_error, vec![0.0]);
 }
 
 #[test]

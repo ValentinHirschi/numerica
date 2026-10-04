@@ -45,6 +45,7 @@ impl QmcEstimate {
         let covariance_size = outputs
             .checked_mul(outputs)
             .ok_or_else(|| QmcError::InvalidWork("covariance shape overflow".into()))?;
+        let origin = &means[0];
         let mut sums = vec![CompensatedSum::default(); outputs];
         for row in means {
             if row.len() != outputs {
@@ -53,22 +54,30 @@ impl QmcEstimate {
                     actual: row.len(),
                 });
             }
-            for (sum, &value) in sums.iter_mut().zip(row) {
+            for ((sum, &value), &anchor) in sums.iter_mut().zip(row).zip(origin) {
                 if !value.is_finite() {
                     return Err(QmcError::NonFiniteValue);
                 }
-                sum.add(value)?;
+                sum.add(value - anchor)?;
             }
         }
-        let mean: Vec<_> = sums
+        // Keep the center as an offset: adding it back to a large absolute
+        // origin can round away variations that must remain in the covariance.
+        let center: Vec<_> = sums
             .iter()
             .map(|sum| sum.total() / replicas as f64)
             .collect();
+        let mean: Vec<_> = origin.iter().zip(&center).map(|(a, b)| a + b).collect();
+        if mean.iter().any(|x| !x.is_finite()) {
+            return Err(QmcError::NumericOverflow);
+        }
         let mut covariance = vec![CompensatedSum::default(); covariance_size];
         for row in means {
             for i in 0..outputs {
                 for j in 0..=i {
-                    covariance[i * outputs + j].add((row[i] - mean[i]) * (row[j] - mean[j]))?;
+                    covariance[i * outputs + j].add(
+                        ((row[i] - origin[i]) - center[i]) * ((row[j] - origin[j]) - center[j]),
+                    )?;
                 }
             }
         }

@@ -216,9 +216,25 @@ impl QmcPlan {
         let index = flat_index % self.rule.points();
         let n = self.rule.points() as f64;
         for (axis, x) in output.iter_mut().enumerate() {
-            let shifted = self.rule.numerator(index, axis) as f64 / n + self.shifts[shift][axis];
+            let lattice = self.rule.numerator(index, axis) as f64 / n;
+            let offset = self.shifts[shift][axis];
+            let shifted = lattice + offset;
             *x = if shifted >= 1.0 {
-                shifted - 1.0
+                // Subtract before adding across the periodic boundary. Taking
+                // the complement of the larger addend is exact (Sterbenz),
+                // and retains tiny residues lost by `(lattice + offset) - 1`.
+                let residue = if lattice >= offset {
+                    offset - (1.0 - lattice)
+                } else {
+                    lattice - (1.0 - offset)
+                };
+                if residue >= 0.0 {
+                    residue
+                } else {
+                    // The exact sum lay just below one but rounded up to one.
+                    // Select its nearest representable coordinate in [0,1).
+                    1.0_f64.next_down()
+                }
             } else {
                 shifted
             };
