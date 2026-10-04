@@ -454,6 +454,36 @@ fn periodized_polynomial_integral_matches_analytic_value() {
 }
 
 #[test]
+fn periodization_rejects_interior_underflow_without_confusing_exact_endpoints() {
+    // Every one-dimensional Jacobian is positive and representable. Their
+    // product is about 3e-686, so the old transform silently returned zero.
+    let mut point = vec![0.001; 100];
+    assert!(point.iter().all(|x| Korobov3::jacobian(*x) > 0.0));
+    assert_eq!(
+        point
+            .iter()
+            .map(|x| Korobov3::jacobian(*x))
+            .product::<f64>(),
+        0.0
+    );
+    assert_eq!(
+        Korobov3::transform_in_place(&mut point),
+        Err(QmcError::NumericUnderflow)
+    );
+    // A single Jacobian can underflow for a strictly interior coordinate too.
+    assert_eq!(
+        Korobov3::transform_in_place(&mut [1e-120]),
+        Err(QmcError::NumericUnderflow)
+    );
+    for endpoint in [0.0, 1.0] {
+        let mut point = vec![0.001; 100];
+        point.push(endpoint);
+        assert_eq!(Korobov3::transform_in_place(&mut point).unwrap(), 0.0);
+        assert_eq!(point.last(), Some(&endpoint));
+    }
+}
+
+#[test]
 fn independent_seed_ensemble_has_calibrated_shift_errors() {
     let mut squared_error = 0.0;
     let mut estimated_variance = 0.0;

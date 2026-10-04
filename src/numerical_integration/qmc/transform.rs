@@ -23,6 +23,9 @@ impl Korobov3 {
     }
 
     /// Transform one point, returning the product Jacobian (one in dimension zero).
+    /// A zero Jacobian is returned only for an original coordinate exactly at
+    /// an endpoint. Underflow at a strictly interior point is an explicit error,
+    /// since a large integrand value could make its contribution representable.
     pub fn transform_in_place(point: &mut [f64]) -> Result<f64, QmcError> {
         if point
             .iter()
@@ -32,13 +35,22 @@ impl Korobov3 {
                 "periodization requires coordinates in [0, 1]".into(),
             ));
         }
+        let endpoint = point.iter().any(|x| *x == 0.0 || *x == 1.0);
         let mut weight = 1.0;
         for x in point {
-            weight *= Self::jacobian(*x);
+            if !endpoint {
+                weight *= Self::jacobian(*x);
+            }
             *x = Self::map(*x);
+        }
+        if endpoint {
+            return Ok(0.0);
         }
         if !weight.is_finite() {
             return Err(QmcError::NumericOverflow);
+        }
+        if weight == 0.0 {
+            return Err(QmcError::NumericUnderflow);
         }
         Ok(weight)
     }
