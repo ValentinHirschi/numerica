@@ -104,13 +104,12 @@ impl QmcAccumulator {
 
     /// Complete replica means only. A gap anywhere inside a shift excludes it.
     pub fn shift_estimates(&self) -> Result<Vec<ShiftEstimate>, QmcError> {
-        let mut counts = vec![0u64; self.plan.shift_count()];
+        let counts = self.shift_counts();
         let mut sums =
             vec![vec![CompensatedSum::default(); self.output_count]; self.plan.shift_count()];
         for partial in self.partials.values() {
             let first = partial.first_shift();
             for (group, row) in partial.sums.iter().enumerate() {
-                counts[first + group] += partial.counts[group];
                 for (sum, &value) in sums[first + group].iter_mut().zip(row) {
                     sum.merge(value)?;
                 }
@@ -128,6 +127,29 @@ impl QmcAccumulator {
                 })
             })
             .collect())
+    }
+
+    /// Identities of fully accepted shifts, without evaluating their numerical
+    /// sums. Coverage remains observable even if finite partial observations
+    /// overflow when combined into a mean or covariance.
+    pub fn complete_shift_ids(&self) -> Vec<usize> {
+        let n = self.plan.rule().points();
+        self.shift_counts()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(shift, count)| (count == n).then_some(shift))
+            .collect()
+    }
+
+    fn shift_counts(&self) -> Vec<u64> {
+        let mut counts = vec![0u64; self.plan.shift_count()];
+        for partial in self.partials.values() {
+            let first = partial.first_shift();
+            for (group, &count) in partial.counts.iter().enumerate() {
+                counts[first + group] += count;
+            }
+        }
+        counts
     }
 
     pub fn estimate(&self) -> Result<QmcEstimate, QmcError> {
