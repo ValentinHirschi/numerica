@@ -484,6 +484,33 @@ fn periodization_rejects_interior_underflow_without_confusing_exact_endpoints() 
 }
 
 #[test]
+fn periodization_rejects_lossy_attenuation_even_when_amplification_recovers_range() {
+    let mut point = vec![0.5; 54];
+    point.extend(vec![0.001; 46]);
+    // An amplification-first product remains normal (~1e-297). Attenuation
+    // first enters the subnormal range and loses accuracy before recovering.
+    let amplification_first = point
+        .iter()
+        .map(|x| Korobov3::jacobian(*x))
+        .product::<f64>();
+    assert!(amplification_first.is_normal());
+    let small_product = vec![0.001; 46]
+        .iter()
+        .map(|x| Korobov3::jacobian(*x))
+        .product::<f64>();
+    assert!(small_product.is_subnormal());
+    let mut reversed = point.iter().rev().copied().collect::<Vec<_>>();
+    assert_eq!(
+        Korobov3::transform_in_place(&mut point),
+        Err(QmcError::NumericUnderflow)
+    );
+    assert_eq!(
+        Korobov3::transform_in_place(&mut reversed),
+        Err(QmcError::NumericUnderflow)
+    );
+}
+
+#[test]
 fn independent_seed_ensemble_has_calibrated_shift_errors() {
     let mut squared_error = 0.0;
     let mut estimated_variance = 0.0;

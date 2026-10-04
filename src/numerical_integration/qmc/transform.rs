@@ -24,8 +24,11 @@ impl Korobov3 {
 
     /// Transform one point, returning the product Jacobian (one in dimension zero).
     /// A zero Jacobian is returned only for an original coordinate exactly at
-    /// an endpoint. Underflow at a strictly interior point is an explicit error,
-    /// since a large integrand value could make its contribution representable.
+    /// an endpoint. Loss of normal binary64 range at a strictly interior point
+    /// is an explicit error, since a large integrand can amplify that loss.
+    /// This conservative guard rejects subnormal attenuation even when later
+    /// amplifying factors could make the final product representable. Acceptance
+    /// must not depend on which parameter happens to appear first.
     pub fn transform_in_place(point: &mut [f64]) -> Result<f64, QmcError> {
         if point
             .iter()
@@ -37,9 +40,17 @@ impl Korobov3 {
         }
         let endpoint = point.iter().any(|x| *x == 0.0 || *x == 1.0);
         let mut weight = 1.0;
+        let mut attenuation = 1.0;
         for x in point {
             if !endpoint {
-                weight *= Self::jacobian(*x);
+                let jacobian = Self::jacobian(*x);
+                if jacobian < 1.0 {
+                    attenuation *= jacobian;
+                    if attenuation < f64::MIN_POSITIVE {
+                        return Err(QmcError::NumericUnderflow);
+                    }
+                }
+                weight *= jacobian;
             }
             *x = Self::map(*x);
         }
@@ -49,7 +60,7 @@ impl Korobov3 {
         if !weight.is_finite() {
             return Err(QmcError::NumericOverflow);
         }
-        if weight == 0.0 {
+        if weight < f64::MIN_POSITIVE {
             return Err(QmcError::NumericUnderflow);
         }
         Ok(weight)

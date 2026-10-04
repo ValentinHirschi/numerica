@@ -30,7 +30,7 @@ impl fmt::Display for QmcError {
             Self::NonFiniteValue => f.write_str("QMC observations must be finite"),
             Self::NumericOverflow => f.write_str("QMC accumulation exceeded finite f64 range"),
             Self::NumericUnderflow => {
-                f.write_str("positive QMC periodization Jacobian underflowed f64 range")
+                f.write_str("positive QMC periodization attenuation lost normal f64 range")
             }
             Self::IncompleteWork { expected, actual } => {
                 write!(
