@@ -328,6 +328,22 @@ fn partial_rejects_bad_values_and_overflow() {
 }
 
 #[test]
+fn accepted_package_layout_is_available_in_index_order() {
+    let p = plan(7, 3);
+    let packages: Vec<_> = p.packages(5).unwrap().collect();
+    let mut accumulator = QmcAccumulator::new(p.clone(), 1).unwrap();
+    for &work in packages.iter().rev() {
+        accumulator
+            .merge(evaluate(&p, work, 1, |_, _| vec![1.0]))
+            .unwrap();
+    }
+    assert_eq!(
+        accumulator.completed_work_packages().collect::<Vec<_>>(),
+        packages
+    );
+}
+
+#[test]
 fn compensated_sums_preserve_large_cancellations() {
     let accumulator = integrate(plan(4, 3), 3, 1, |i, _| {
         vec![[1e16, 1.0, -1e16, 3.0][(i % 4) as usize]]

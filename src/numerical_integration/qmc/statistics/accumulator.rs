@@ -78,6 +78,14 @@ impl QmcAccumulator {
         self.completed_points() == self.plan.total_points()
     }
 
+    /// Accepted package intervals in canonical index order. This lets a caller
+    /// validate its own fixed packaging and bookkeeping when restoring state.
+    pub fn completed_work_packages(
+        &self,
+    ) -> impl Iterator<Item = super::super::QmcWorkPackage> + '_ {
+        self.partials.values().map(|partial| partial.work())
+    }
+
     /// Unmerged intervals, in increasing order. No partial interval is counted twice.
     pub fn missing_ranges(&self) -> Vec<Range<u64>> {
         let mut missing = Vec::new();
