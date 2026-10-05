@@ -32,5 +32,5 @@ pub use catalogue::PublishedLattice;
 pub use error::QmcError;
 pub use rule::{KUO_MAX_DIMENSION, KUO_MAX_POINTS, KUO_MIN_POINTS, Rank1Rule, RuleSource};
 pub use statistics::{QmcAccumulator, QmcEstimate, QmcPartial, ShiftEstimate};
-pub use transform::Korobov3;
+pub use transform::{Korobov2, Korobov3};
 pub use work::{QmcPlan, QmcWorkPackage};
